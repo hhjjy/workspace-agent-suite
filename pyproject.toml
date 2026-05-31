@@ -1,0 +1,17 @@
+[project]
+name = "workspace-agent-suite"
+version = "0.1.0"
+description = "AI Workspace Agent Suite — Gmail Refund + Calendar Agent"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph",
+    "langchain-openai",
+    "langchain-mcp-adapters",
+    "langchain-core",
+    "workspace-mcp",
+    "python-dotenv",
+    "streamlit",
+    "nest-asyncio",
+    "gradio",
+    "rich",
+]
