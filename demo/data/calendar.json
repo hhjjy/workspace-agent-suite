@@ -10,6 +10,7 @@
             "args": {
               "time_min": "2026-06-01T00:00:00Z",
               "time_max": "2026-06-08T00:00:00Z",
+              "user_google_email": "chun24161582@gmail.com",
               "calendar_id": "primary",
               "detailed": true
             }
@@ -18,18 +19,18 @@
         "observations": [
           {
             "tool": "get_events",
-            "result": "[{'type': 'text', 'text': 'Successfully retrieved 10 events from calendar \\'primary\\' for chun24161582@gmail.com:\\n- \"Team Standup\" (Starts: 2026-06-01T09:00:00+08:00, Ends: 2026-06-01T10:00:00+08:00)\\n  Description: No Description\\n  Location: No Location\\n  Attendees: None\\n  Attendee Details: None\\n  ID: 65c30imqjnqj1lupsb0t7e7atg | Link: https://www.google.com/calendar/event?eid=NjVjMzBpbXFqbnFqMWx1cHNiMHQ3ZTdhdGcgY2h1bjI0MTYxNTgyQG0\\n- \"Research Meeting\" (Starts: 2026-06-01T14:00:00+08:00, Ends: 2026-06-01T15:00:00+08:00)\\n  Description: No Description\\n  Location: No Location\\n  Attendee …"
+            "result": "Successfully retrieved 10 events from calendar 'primary' for chun24161582@gmail.com:\n- \"Team Standup\" (Starts: 2026-06-01T09:00:00+08:00, Ends: 2026-06-01T10:00:00+08:00)\n  Description: No Description\n  Location: No Location\n  Attendees: None\n  Attendee Details: None\n  ID: gkopj3jnta10qkrvsbounf0d04 | Link: https://www.google.com/calendar/event?eid=Z2tvcGozam50YTEwcWtydnNib3VuZjBkMDQgY2h1bjI0MTYxNTgyQG0\n- \"Research Meeting\" (Starts: 2026-06-01T14:00:00+08:00, Ends: 2026-06-01T15:00:00+08:00)\n  Description: No Description\n  Location: No Location\n  Attendees: None\n  Attendee Details: None\n  ID:  …"
           }
         ]
       }
     ],
-    "answer": "Here's your calendar for this week (**Monday, June 1 – Sunday, June 7**):\n\n---\n\n### 📅 Monday, June 1 (Today)\n- **Team Standup** — 9:00 AM – 10:00 AM\n- **Research Meeting** — 2:00 PM – 3:00 PM\n\n### 📅 Tuesday, June 2\n- **Project Review** — 10:00 AM – 11:00 AM\n- **Student Advising** — 3:00 PM – 4:00 PM\n\n### 📅 Wednesday, June 3\n- **Faculty Meeting** — 9:00 AM – 10:30 AM\n- **PhD Progress Review** — 2:00 PM – 3:00 PM\n\n### 📅 Thursday, June 4\n- **Industry Collaboration Meeting** — 11:00 AM – 12:00 PM\n- **Lab Weekly Meeting** — 3:00 PM – 4:00 PM\n\n### 📅 Friday, June 5\n- **Grant Proposal Discussion** — 9:00 AM – 10:00 AM\n- **Research Seminar** — 3:00 PM – 4:00 PM\n\n### 📅 Saturday, June 6 & Sunday, June 7\n- **Nothing scheduled** — enjoy your weekend! 🎉\n\n---\n\nYou have **10 events** total across the week, mostly clustered on weekdays. You've got a nice mix of team meetings, research discussions, and faculty/student engagements. Would you like me to help with anything else — like finding free time slots, rescheduling, or adding a new event?"
+    "answer": "Here's what's on your calendar this week! 🗓️\n\n---\n\n### 📅 **Monday, June 1**\n- **9:00 AM – 10:00 AM** — Team Standup\n- **2:00 PM – 3:00 PM** — Research Meeting\n\n### 📅 **Tuesday, June 2**\n- **10:00 AM – 11:00 AM** — Project Review\n- **3:00 PM – 4:00 PM** — Student Advising\n\n### 📅 **Wednesday, June 3**\n- **9:00 AM – 10:30 AM** — Faculty Meeting\n- **2:00 PM – 3:00 PM** — PhD Progress Review\n\n### 📅 **Thursday, June 4**\n- **11:00 AM – 12:00 PM** — Industry Collaboration Meeting\n- **3:00 PM – 4:00 PM** — Lab Weekly Meeting\n\n### 📅 **Friday, June 5**\n- **9:00 AM – 10:00 AM** — Grant Proposal Discussion\n- **3:00 PM – 4:00 PM** — Research Seminar\n\n### 📅 **Saturday, June 6 & Sunday, June 7**\n- No events — your weekend is clear! 🎉\n\n---\n\nYou've got **10 events** across the weekdays, with a nice mix of team syncs, meetings, and research activities. Let me know if you'd like to add anything, adjust any events, or find some free time slots!"
   },
   {
     "query": "Schedule a team lunch for the coming Friday at noon for 1 hour.",
     "react": [
       {
-        "thought": "Great news! Looking at Friday, June 5, you have:\n- **Grant Proposal Discussion** — 9:00 AM – 10:00 AM\n- **Research Seminar** — 3:00 PM – 4:00 PM\n\nSo **12:00 PM – 1:00 PM** is wide open! Let me schedule it.",
+        "thought": "Great! Let me check — Friday, June 5 is clear between your existing events. You have the **Grant Proposal Discussion** (9–10 AM) and **Research Seminar** (3–4 PM), so noon works perfectly! Let me create the event.",
         "actions": [
           {
             "tool": "manage_event",
@@ -37,29 +38,32 @@
               "action": "create",
               "summary": "Team Lunch",
               "start_time": "2026-06-05T12:00:00+08:00",
-              "end_time": "2026-06-05T13:00:00+08:00"
+              "end_time": "2026-06-05T13:00:00+08:00",
+              "user_google_email": "chun24161582@gmail.com",
+              "calendar_id": "primary"
             }
           }
         ],
         "observations": [
           {
             "tool": "manage_event",
-            "result": "[{'type': 'text', 'text': \"Successfully created event 'Team Lunch' for chun24161582@gmail.com. Link: https://www.google.com/calendar/event?eid=OTliOTJ0bjkzMmkycWhrZjRhZzY3MjJmZmMgY2h1bjI0MTYxNTgyQG0\", 'id': 'lc_c4eb1891-212a-4de4-9fef-1c33820ad1cf'}]"
+            "result": "Successfully created event 'Team Lunch' for chun24161582@gmail.com. Link: https://www.google.com/calendar/event?eid=cmE1cTRjcGJsNG1oM3NvZGJyNzJ1dWpmNTggY2h1bjI0MTYxNTgyQG0"
           }
         ]
       }
     ],
-    "answer": "Done! ✅ **Team Lunch** has been scheduled for **Friday, June 5** from **12:00 PM – 1:00 PM**.\n\nHere's how your Friday looks now:\n\n| Time | Event |\n|------|-------|\n| 9:00 AM – 10:00 AM | Grant Proposal Discussion |\n| **12:00 PM – 1:00 PM** | **🍕 Team Lunch** |\n| 3:00 PM – 4:00 PM | Research Seminar |\n\nWould you like me to add any attendees, a location (like a restaurant), or a description to the event?"
+    "answer": "Done! ✅ I've scheduled a **Team Lunch** for **Friday, June 5** at **12:00 PM – 1:00 PM** on your calendar. 🎉\n\nHere's how your Friday looks now:\n\n- **9:00 AM – 10:00 AM** — Grant Proposal Discussion\n- **12:00 PM – 1:00 PM** — 🍕 **Team Lunch** *(new!)*\n- **3:00 PM – 4:00 PM** — Research Seminar\n\nLet me know if you'd like to add any attendees, set a location, or adjust anything!"
   },
   {
     "query": "Find a free 30-minute slot for a call with john@example.com this week.",
     "react": [
       {
-        "thought": "Let me check your free/busy schedule for this week!\n\n",
+        "thought": "Let me check your busy periods for this week and find available slots!",
         "actions": [
           {
             "tool": "query_freebusy",
             "args": {
+              "user_google_email": "chun24161582@gmail.com",
               "time_min": "2026-06-01T00:00:00+08:00",
               "time_max": "2026-06-06T00:00:00+08:00"
             }
@@ -68,12 +72,12 @@
         "observations": [
           {
             "tool": "query_freebusy",
-            "result": "[{'type': 'text', 'text': 'Free/Busy information for chun24161582@gmail.com:\\nTime range: 2026-05-31T16:00:00.000Z to 2026-06-05T16:00:00.000Z\\n\\nCalendar: primary\\n  Busy periods: 11\\n    - 2026-06-01T01:00:00Z to 2026-06-01T02:00:00Z\\n    - 2026-06-01T06:00:00Z to 2026-06-01T07:00:00Z\\n    - 2026-06-02T02:00:00Z to 2026-06-02T03:00:00Z\\n    - 2026-06-02T07:00:00Z to 2026-06-02T08:00:00Z\\n    - 2026-06-03T01:00:00Z to 2026-06-03T02:30:00Z\\n    - 2026-06-03T06:00:00Z to 2026-06-03T07:00:00Z\\n    - 2026-06-04T03:00:00Z to 2026-06-04T04:00:00Z\\n    - 2026-06-04T07:00:00Z to 2026-06-04T08:00:00Z\\ …"
+            "result": "Free/Busy information for chun24161582@gmail.com:\nTime range: 2026-05-31T16:00:00.000Z to 2026-06-05T16:00:00.000Z\n\nCalendar: primary\n  Busy periods: 11\n    - 2026-06-01T01:00:00Z to 2026-06-01T02:00:00Z\n    - 2026-06-01T06:00:00Z to 2026-06-01T07:00:00Z\n    - 2026-06-02T02:00:00Z to 2026-06-02T03:00:00Z\n    - 2026-06-02T07:00:00Z to 2026-06-02T08:00:00Z\n    - 2026-06-03T01:00:00Z to 2026-06-03T02:30:00Z\n    - 2026-06-03T06:00:00Z to 2026-06-03T07:00:00Z\n    - 2026-06-04T03:00:00Z to 2026-06-04T04:00:00Z\n    - 2026-06-04T07:00:00Z to 2026-06-04T08:00:00Z\n    - 2026-06-05T01:00:00Z to 2026-06-0 …"
           }
         ]
       },
       {
-        "thought": "Now let me check the free time slots for each weekday to find a 30-minute opening",
+        "thought": "Now let me find the free time slots for each weekday!",
         "actions": [
           {
             "tool": "find_free_slots",
@@ -151,6 +155,6 @@
         ]
       }
     ],
-    "answer": "Here are all the available 30-minute slots this week for your call with John! All times are in **Asia/Taipei (UTC+8)**.\n\n---\n\n### 📅 Monday, June 1\n- 10:00 AM – 2:00 PM or 3:00 PM – 6:00 PM\n\n### 📅 Tuesday, June 2\n- 9:00 AM – 10:00 AM, 11:00 AM – 3:00 PM, or 4:00 PM – 6:00 PM\n\n### 📅 Wednesday, June 3\n- 10:30 AM – 2:00 PM or 3:00 PM – 6:00 PM\n\n### 📅 Thursday, June 4\n- 9:00 AM – 11:00 AM, 12:00 PM – 3:00 PM, or 4:00 PM – 6:00 PM\n\n### 📅 Friday, June 5\n- **10:00 AM – 12:00 PM**, 1:00 PM – 3:00 PM, or 4:00 PM – 6:00 PM\n\n---\n\n**My top recommendations (plenty of room for 30 min):**\n1. ⭐ **Tuesday, June 2 at 11:00 AM** — a nice mid-morning slot\n2. ⭐ **Thursday, June 4 at 10:00 AM** — available for 2 hours\n3. ⭐ **Friday, June 5 at 10:00 AM** — before your Team Lunch at noon\n\nWould you like me to create a 30-min event for one of these slots with John?"
+    "answer": "Great news — there are plenty of free slots this week! Here are some good options for a **30-minute call with John**:\n\n---\n\n### ✅ Available 30-min slots this week:\n\n**Monday, June 1**\n- 🕐 10:00 AM – 2:00 PM *(wide open after Team Standup)*\n- 🕐 3:00 PM – 6:00 PM\n\n**Tuesday, June 2**\n- 🕐 9:00 AM – 10:00 AM\n- 🕐 11:00 AM – 3:00 PM *(wide open after Project Review)*\n- 🕐 4:00 PM – 6:00 PM\n\n**Wednesday, June 3**\n- 🕐 10:30 AM – 2:00 PM\n- 🕐 3:00 PM – 6:00 PM\n\n**Thursday, June 4**\n- 🕐 9:00 AM – 11:00 AM\n- 🕐 12:00 PM – 3:00 PM\n- 🕐 4:00 PM – 6:00 PM\n\n**Friday, June 5**\n- 🕐 10:00 AM – 12:00 PM\n- 🕐 1:00 PM – 3:00 PM\n- 🕐 4:00 PM – 6:00 PM\n\n---\n\n### My top picks:\n1. ⭐ **Tuesday 11:00 AM** — nice mid-morning gap\n2. ⭐ **Thursday 9:30 AM** — start the day with it\n3. ⭐ **Friday 10:30 AM** — fits between Grant Discussion & Team Lunch\n\nWould you like me to schedule one of these and add John (john@example.com) as an attendee? Just say which slot works for you!"
   }
 ]

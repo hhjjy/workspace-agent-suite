@@ -89,6 +89,11 @@ have not answered until find_free_slots has run and you list real slots.
 - These call workspace-cli as subprocess. Use MCP tools first; only try CLI if MCP fails.
 
 ## Output Rules
+- ALWAYS end your turn with a natural-language reply to the user. After a tool
+  returns, summarize its result in text (list the events, confirm the created
+  event, or state the free slots). NEVER finish a turn with only a tool call and
+  no text — if you already have the data from a tool, WRITE THE ANSWER now
+  instead of calling more tools or returning an empty message.
 - Convert ISO timestamps to human-readable format (e.g., "Monday, May 26, 9:00 AM")
 - List events chronologically with bullet points
 - Include event location or video link if available

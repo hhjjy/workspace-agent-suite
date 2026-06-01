@@ -8,6 +8,7 @@ replays saved runs through the very same primitives, so live and replay look
 identical.
 """
 
+import ast
 import sys
 
 # Windows terminals default to cp950 and cannot encode emoji/box chars — force UTF-8.
@@ -75,7 +76,7 @@ def react_observation(step: int, results: list[dict]) -> None:
     console.print(f"[bold green]👁  Observation {step}[/]")
     for r in results:
         name = r.get("name") or "tool"
-        text = str(r.get("result", ""))
+        text = _clean_observation(r.get("result", ""))
         if len(text) > MAX_RESULT_CHARS:
             text = text[:MAX_RESULT_CHARS] + " …"
         lines = text.splitlines() or [""]
@@ -106,6 +107,21 @@ def email_card(index: int, sender: str, subject: str, classification: str, actio
 def _short(v, n: int = 48) -> str:
     s = str(v).replace("\n", " ")
     return s if len(s) <= n else s[:n] + "…"
+
+
+def _clean_observation(raw) -> str:
+    """MCP tool results arrive as a repr'd list of {'type':'text','text': ...}
+    dicts. Pull out the human-readable text so the trace isn't full of JSON."""
+    s = str(raw)
+    try:
+        val = ast.literal_eval(s)
+    except (ValueError, SyntaxError):
+        return s
+    if isinstance(val, list):
+        parts = [d["text"] for d in val if isinstance(d, dict) and d.get("text")]
+        if parts:
+            return "\n".join(parts)
+    return s
 
 
 # ── Refund summary table → per-email rows ─────────────────────────────────────

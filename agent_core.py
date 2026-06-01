@@ -72,6 +72,16 @@ async def build_agent(
     def agent_node(state: AgentState) -> dict:
         messages = [sys_msg] + list(state["messages"])
         response = llm.invoke(messages)
+        # Some models (e.g. deepseek) sometimes return an empty turn right after
+        # tool results — no content and no tool call — which silently ends the
+        # ReAct loop with no answer. Nudge once to make it continue.
+        if not getattr(response, "tool_calls", None) and not str(response.content).strip():
+            nudge = HumanMessage(content=(
+                "(Continue — do not return an empty message. Based on the tool "
+                "results above, either call the next tool you need, or write your "
+                "final answer for the user now.)"
+            ))
+            response = llm.invoke(messages + [nudge])
         return {"messages": [response]}
 
     tool_node = ToolNode(all_tools, handle_tool_errors=True)

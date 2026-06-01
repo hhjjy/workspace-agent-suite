@@ -28,6 +28,7 @@ if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from agent_core import build_agent
+from agent_view import _clean_observation
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 MAX_RESULT_CHARS = 600
@@ -60,7 +61,7 @@ def extract_record(messages: list, query: str) -> dict:
             }
             react.append(current)
         elif isinstance(msg, ToolMessage):
-            result = str(msg.content)
+            result = _clean_observation(str(msg.content))
             if len(result) > MAX_RESULT_CHARS:
                 result = result[:MAX_RESULT_CHARS] + " …"
             if current is not None:
