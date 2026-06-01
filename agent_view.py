@@ -126,9 +126,14 @@ def _clean_observation(raw) -> str:
 
 # ── Refund summary table → per-email rows ─────────────────────────────────────
 
+_CATEGORIES = ("REFUND_REQUEST", "RETURN_REQUEST", "COMPLAINT", "OTHER")
+
+
 def parse_summary_table(answer: str) -> list[dict]:
     """Extract per-email rows from the agent's OWN markdown summary table.
 
+    Format-agnostic: locates each row's classification cell by matching a known
+    category, so it works whether or not the table has a leading "#" column.
     Re-arranges the agent's output only; invents no data.
     Returns a list of {sender, subject, classification, action}.
     """
@@ -138,13 +143,25 @@ def parse_summary_table(answer: str) -> list[dict]:
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) < 5 or not cells[0].isdigit():
+        if len(cells) < 4:
             continue
+        # Find the classification cell by content (not position).
+        cls = cls_idx = None
+        for i, c in enumerate(cells):
+            upper = c.replace("*", "").upper()
+            match = next((cat for cat in _CATEGORIES if cat in upper), None)
+            if match:
+                cls, cls_idx = match, i
+                break
+        if cls is None:  # header / separator / non-data row
+            continue
+        sender = next((c for c in cells if "@" in c), cells[0])
+        subject = cells[cls_idx - 1].strip('"*') if cls_idx > 0 else ""
         rows.append({
-            "sender": cells[1],
-            "subject": cells[2].strip('"'),
-            "classification": cells[3].replace("*", "").strip(),
-            "action": cells[4],
+            "sender": sender,
+            "subject": subject,
+            "classification": cls,
+            "action": cells[-1],
         })
     return rows
 

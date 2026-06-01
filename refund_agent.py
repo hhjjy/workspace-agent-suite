@@ -42,11 +42,14 @@ Your job is to process customer service emails — refunds, returns, complaints,
 ## Workflow (execute all 6 steps in order)
 
 1. **SEARCH** — Use search_gmail_messages to find ALL unread customer service emails.
-   Run THESE searches and combine + deduplicate results by message ID:
-   - "refund OR return is:unread"
-   - "complaint OR disappointed OR unacceptable OR terrible OR service OR help is:unread"
-   - "is:unread newer_than:2d"  (catch-all — some emails have none of the keywords
-     above, e.g. a vague complaint or a promo; this makes sure none are missed)
+   Run THESE searches and combine + deduplicate results by message ID. Every query
+   ends with ` -subject:re -from:mailer-daemon` to skip our own past replies and
+   system bounce notices:
+   - "refund OR return is:unread -subject:re -from:mailer-daemon"
+   - "complaint OR disappointed OR unacceptable OR terrible OR service OR help is:unread -subject:re -from:mailer-daemon"
+   - "is:unread newer_than:2d -subject:re -from:mailer-daemon"  (catch-all — some
+     emails have none of the keywords above, e.g. a promo; this makes sure none
+     are missed)
    You MUST run the catch-all query too. Do not rely on keywords alone.
 
 2. **READ** — For each email found, use get_gmail_message_content to read the full body,
@@ -124,9 +127,12 @@ Your job is to process customer service emails — refunds, returns, complaints,
 AUTO_PROMPT = """Process all customer service emails in my inbox now.
 
 Execute the full 6-step workflow:
-1. Search for unread emails using BOTH queries:
-   - "refund OR return is:unread"
-   - "complaint OR disappointed OR unacceptable OR terrible is:unread"
+1. Search for unread emails using ALL THREE queries (each ends with
+   ` -subject:re -from:mailer-daemon` to skip past replies + system bounces),
+   then combine and deduplicate by message ID:
+   - "refund OR return is:unread -subject:re -from:mailer-daemon"
+   - "complaint OR disappointed OR unacceptable OR terrible OR service OR help is:unread -subject:re -from:mailer-daemon"
+   - "is:unread newer_than:2d -subject:re -from:mailer-daemon"
 2. Read each email's full content
 3. Classify as REFUND_REQUEST, RETURN_REQUEST, COMPLAINT, or OTHER
 4. Compose replies using the templates

@@ -208,6 +208,11 @@ async def main() -> None:
 
     print(f"\nDone. {sent} sent, {failed} failed.")
     if sent:
+        # Gmail search is eventually-consistent; fresh messages take a moment to
+        # index. Wait so the Refund Agent's search finds all 8 right away.
+        wait = 25
+        print(f"[*] 等待 Gmail 索引 {wait}s(讓剛寄的 8 封都搜得到,再跑退款)…")
+        await asyncio.sleep(wait)
         print("Now run:  python refund_agent.py auto")
 
 
