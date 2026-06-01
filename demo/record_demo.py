@@ -33,13 +33,11 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 MAX_RESULT_CHARS = 600
 
 # 行事曆以多輪對話錄製;退款跑 auto 一次。
+# 與官方測試 Testing_project_2.pdf §1.4–1.6 對齊,讓預錄備案內容 = 現場 demo。
 CALENDAR_QUERIES = [
-    "我有哪些日曆?",
-    "我 6/2(下週二)有哪些時段有空?上班時間 9 點到 18 點。",
-    "幫我看接下來 7 天的行程。",
-    "幫我在 6/3(週三)下午 3 點建立一個 1 小時的會議,標題叫 Demo Sync。",
-    "再幫我看一次接下來 7 天的行程,確認剛剛的會議建好了。",
-    "把剛剛那個 Demo Sync 會議刪掉。是的,請執行。",
+    "What's on my calendar?",
+    "Schedule a team lunch for the coming Friday at noon for 1 hour.",
+    "Find a free 30-minute slot for a call with john@example.com this week.",
 ]
 
 

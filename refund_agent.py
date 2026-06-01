@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent_core import build_agent, print_agent_steps, print_agent_turn, run_interactive_chat, validate_env
+from agent_core import build_agent, run_interactive_chat, validate_env
+from agent_view import live_render, session_banner
 
 load_dotenv()
 
@@ -132,12 +133,8 @@ Execute the full 6-step workflow:
 
 
 async def run_auto_refund_processing(agent) -> None:
-    print("\n=== Refund Agent — Auto Mode ===")
-    print("Auto-processing customer service emails...\n")
-
-    result = await agent.ainvoke({"messages": [HumanMessage(content=AUTO_PROMPT)]})
-    print_agent_steps(result["messages"])
-    print_agent_turn(result["messages"])
+    session_banner("Refund Email Agent — Auto Mode (Testing Spec §2.4–2.6)")
+    await live_render(agent, [HumanMessage(content=AUTO_PROMPT)], kind="refund")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -170,7 +167,7 @@ async def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "auto":
         await run_auto_refund_processing(agent)
     else:
-        await run_interactive_chat(agent)
+        await run_interactive_chat(agent, kind="refund")
 
 
 if __name__ == "__main__":

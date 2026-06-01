@@ -9,10 +9,8 @@ if sys.stdout.encoding != "utf-8":
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from rich.console import Console
-from rich.markdown import Markdown
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
@@ -90,44 +88,9 @@ async def build_agent(
 
 # ── Interactive chat ─────────────────────────────────────────────────────────
 
-_console = Console()
+async def run_interactive_chat(agent: Any, kind: str = "generic") -> None:
+    from agent_view import live_render
 
-
-def print_agent_steps(new_messages: list) -> None:
-    """Print the agent's tool calls + results for this turn, so the live modes
-    show the ReAct steps (matching the recorded demo viewer)."""
-    steps = [m for m in new_messages if isinstance(m, ToolMessage)]
-    if not steps:
-        return
-    _console.print("[dim]── Agent reasoning trace ──[/]")
-    for m in steps:
-        name = m.name or "tool"
-        result = str(m.content)
-        if len(result) > 500:
-            result = result[:500] + " …"
-        _console.print(f"  [yellow]{name}[/]")
-        for ln in result.splitlines() or [""]:
-            _console.print(f"       [dim]↳ {ln}[/]")
-
-
-def print_agent_turn(messages: list) -> None:
-    """Pretty-print the agent's reply (Rich Markdown) with an empty-response
-    fallback. Shared by the live interactive loops."""
-    answer = ""
-    for msg in reversed(messages):
-        if isinstance(msg, AIMessage) and str(msg.content).strip():
-            answer = str(msg.content)
-            break
-    _console.print()
-    _console.print("Agent", style="bold green")
-    if answer:
-        _console.print(Markdown(answer))
-    else:
-        _console.print("[dim](已完成操作,無文字回覆)[/]")
-    _console.print()
-
-
-async def run_interactive_chat(agent: Any) -> None:
     history: list[BaseMessage] = []
     print("\nAgent ready. Type 'exit' or 'quit' to stop.\n")
 
@@ -146,12 +109,7 @@ async def run_interactive_chat(agent: Any) -> None:
             continue
 
         history.append(HumanMessage(content=user_input))
-        prev_len = len(history)
-        result = await agent.ainvoke({"messages": history})
-        history = list(result["messages"])
-
-        print_agent_steps(history[prev_len:])
-        print_agent_turn(history)
+        history = await live_render(agent, history, kind=kind)
 
 
 # ── Env validation ───────────────────────────────────────────────────────────

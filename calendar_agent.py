@@ -17,11 +17,10 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from agent_core import (
     AgentState,
     build_agent,
-    print_agent_steps,
-    print_agent_turn,
     run_interactive_chat,
     validate_env,
 )
+from agent_view import live_render, session_banner
 
 load_dotenv()
 
@@ -288,20 +287,18 @@ EXTRA_TOOLS = CLI_TOOLS + [find_free_slots]
 
 # ── Demo mode ────────────────────────────────────────────────────────────────
 
+# Mirrors the official testing spec (Testing_project_2.pdf §1.4–1.6).
 DEMO_QUERIES = [
-    "What calendars do I have?",
-    "What's on my calendar today?",
-    "Show me my events for the next 7 days.",
+    "What's on my calendar?",
+    "Schedule a team lunch for the coming Friday at noon for 1 hour.",
+    "Find a free 30-minute slot for a call with john@example.com this week.",
 ]
 
 
 async def run_demo(agent) -> None:
-    print("\n=== Calendar Agent — Demo Mode ===\n")
-    for i, query in enumerate(DEMO_QUERIES, 1):
-        print(f"── Query {i}: {query}")
-        result = await agent.ainvoke({"messages": [HumanMessage(content=query)]})
-        print_agent_steps(result["messages"])
-        print_agent_turn(result["messages"])
+    session_banner("Calendar Agent — Demo (Testing Spec §1.4–1.6)")
+    for query in DEMO_QUERIES:
+        await live_render(agent, [HumanMessage(content=query)], kind="calendar")
 
 
 # ── Interactive mode (extended) ──────────────────────────────────────────────
@@ -329,12 +326,7 @@ async def run_calendar_chat(agent) -> None:
             continue
 
         history.append(HumanMessage(content=user_input))
-        prev_len = len(history)
-        result = await agent.ainvoke({"messages": history})
-        history = list(result["messages"])
-
-        print_agent_steps(history[prev_len:])
-        print_agent_turn(history)
+        history = await live_render(agent, history, kind="calendar")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

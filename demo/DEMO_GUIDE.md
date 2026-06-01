@@ -2,6 +2,9 @@
 
 > 目標:8–10 分鐘內展示兩個自主 AI agent(行事曆 + 退款郵件)。
 > 策略:**主打真連線即時跑;若網路/API 出包,立刻切到預錄回放。**
+>
+> 📌 **要照老師測試須知(Testing_project_2.pdf)逐步跑 → 看 `demo/PDF_TEST_RUNSHEET.md`**。
+> 本檔是較口語的 8–10 分鐘版本。
 
 ---
 
@@ -13,11 +16,11 @@
 # (1) 確認環境能連(LLM + Google),約 30 秒
 .venv\Scripts\python.exe calendar_agent.py demo
 
-# (2) 塞測試行程(讓「找空檔」有東西可算)
-.venv\Scripts\python.exe demo\seed_calendar.py
+# (2) 塞 10 筆測試行程(對齊 PDF Table 1,讓「找空檔」有東西可算)
+.venv\Scripts\python.exe testdata\create_calendar_events.py
 
-# (3) 寄 4 封測試客服信到自己信箱(退款 demo 用)
-.venv\Scripts\python.exe tests\send_test_emails.py
+# (3) 寄 8 封測試客服信到自己信箱(對齊 PDF §2.3,退款 demo 用)
+.venv\Scripts\python.exe testdata\send_test_emails.py
 
 # (4) 重新錄製預錄備案(萬一現場斷網就放這個)
 .venv\Scripts\python.exe demo\record_demo.py
