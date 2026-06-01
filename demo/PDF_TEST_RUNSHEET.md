@@ -108,6 +108,10 @@ Find a free 30-minute slot for a call with john@example.com this week.
 ```
 → `OK Sent ×8`(§2.2 / §2.3)
 
+> ⚠️ **每次退款 demo 前都務必先跑這支**。它預設會**先清理**(把舊測試信 + agent 上一輪
+> 的回信丟垃圾桶),所以跑完信箱剛好 **8 封未讀**;退款 agent 的三段搜尋去重後就是乾淨的
+> 8 封。**若略過這步**,上一輪的回信會殘留,被 catch-all 搜尋撈進來 → 變成十幾封、數字對不上。
+
 **③ 注入後 —— 再跑一次:**
 ```powershell
 .venv\Scripts\python.exe refund_agent.py auto
