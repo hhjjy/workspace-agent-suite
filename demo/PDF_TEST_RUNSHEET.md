@@ -43,41 +43,89 @@ uv sync                                    # 安裝套件
 
 ## 階段 2｜當場 demo —— 注入前 → 注入後 對照
 
-> 這個「先看空的 → 注入 → 再看」的橋段,當場證明 agent 是**真的在讀寫 Google**,
-> 不是套招。兩個 agent 走一樣的節奏。建議開**兩個終端視窗**:一個跑 agent、一個跑注入。
+> 「先看空的 → 注入 → 再看」的橋段,當場證明 agent **真的在讀寫 Google**,不是套招。
+> 建議開**兩個終端視窗**:視窗 A 跑 agent、視窗 B 跑注入腳本。
 
-### A. 行事曆 Agent
+### 開場白(20 秒)
 
-開 agent:`.venv\Scripts\python.exe calendar_agent.py`
+> 「這是兩個自主 AI agent,用 **ReAct** 架構——**Thought → Action → Observation**
+> 迴圈——透過 MCP 真的操作我的 Google 行事曆和 Gmail。畫面每一步都會標出它在想什麼、
+> 呼叫什麼工具。」
 
-| 步驟 | 動作 | 老師看到 | 對應 |
-|---|---|---|---|
-| 1️⃣ 注入前 | 在 agent 打 `What's on my calendar?` | 行事曆空的 / 沒幾筆 | — |
-| 2️⃣ 注入 | 另一視窗跑 `testdata\create_calendar_events.py` | `OK Created ×10` | §1.2/1.3 |
-| 3️⃣ 注入後 | 回 agent 再打 `What's on my calendar?` | **10 筆全冒出來**(對比!) | §1.4 |
-| 4️⃣ 任務 | `Schedule a team lunch for the coming Friday at noon for 1 hour.` | 建立 Team Lunch 週五 12:00–13:00 | §1.5 |
-| 5️⃣ 任務 | `Find a free 30-minute slot for a call with john@example.com this week.` | 算出空檔(看到 `query_freebusy → find_free_slots` 兩步) | §1.6 |
+### 第一幕:行事曆 Agent
 
-打完輸入 `exit` 離開。
+**① 開 agent(視窗 A)**
+```powershell
+.venv\Scripts\python.exe calendar_agent.py
+```
 
-> 講解詞:「我先問它行事曆有什麼——空的。現在注入測試資料……再問一次,10 筆全出現,
-> 證明它每次都真的去讀我的 Google Calendar。」
+**② 注入前 —— 在 agent 裡輸入(打英文原句):**
+```
+What's on my calendar?
+```
+> 講:「先看現在行事曆——空的 / 沒幾筆。」
 
-### B. 退款 Email Agent
+**③ 注入(視窗 B)**
+```powershell
+.venv\Scripts\python.exe testdata\create_calendar_events.py
+```
+→ 看到 `OK Created ×10`(§1.2 / §1.3)
 
-| 步驟 | 動作 | 老師看到 | 對應 |
-|---|---|---|---|
-| 1️⃣ 注入前 | `.venv\Scripts\python.exe refund_agent.py auto` | `Found 0 emails` / 無信可處理 | — |
-| 2️⃣ 注入 | `testdata\send_test_emails.py` | `OK Sent ×8` | §2.2/2.3 |
-| 3️⃣ 注入後 | 再跑 `refund_agent.py auto` | 逐封**彩色卡片**:讀取→分類→回信 | §2.4–2.5 |
-| 4️⃣ 結果 | (同一次跑完的摘要) | `Processed 8 ｜ Replied 6 ｜ Skipped 2` | §2.6 |
-| 5️⃣ 佐證(選用) | 打開 Gmail 看寄件備份 | 6 封 threaded 回信真的寄出 | — |
+**④ 注入後 —— 回 agent 再輸入一次:**
+```
+What's on my calendar?
+```
+> 講:「再問一次——**10 筆全出現**,證明它真的在讀我的 Google Calendar。」(§1.4)
 
-> 講解詞:「先跑一次——沒有客服信。注入 8 封……再跑一次,它自動分類、該回的回、
-> 促銷信跳過,最後 8 封處理、6 回、2 略。」
+**⑤ 建立事件 —— 輸入:**
+```
+Schedule a team lunch for the coming Friday at noon for 1 hour.
+```
+→ `🧠 Thought → ⚙ manage_event → ✅` 建立 Team Lunch 週五 12:00–13:00(§1.5)
 
-> 想走最穩路線:把注入放到階段 1 事前做好,正式只在 agent 打 §1.4–1.6 的 prompt /
-> 跑 `refund_agent.py auto`(`calendar_agent.py demo` 會自動依序跑那三句)。
+**⑥ 找空檔(招牌)—— 輸入:**
+```
+Find a free 30-minute slot for a call with john@example.com this week.
+```
+→ `⚙ query_freebusy → ⚙ find_free_slots → ✅`,吐出 Mon 10:00–10:30 等(§1.6)
+> 講:「注意它**連續兩步**——先拿忙碌時段,再用我們自己寫的工具算空檔。這就是 ReAct:
+> 它自己決定下一步用什麼工具。」
+
+**⑦ 離開:** 輸入 `exit`
+
+### 第二幕:退款 Email Agent
+
+**① 注入前 —— 跑一次(視窗 A):**
+```powershell
+.venv\Scripts\python.exe refund_agent.py auto
+```
+→ `Found 0 emails`
+> 講:「先掃信箱——沒有客服信。」
+
+**② 注入(視窗 B):**
+```powershell
+.venv\Scripts\python.exe testdata\send_test_emails.py
+```
+→ `OK Sent ×8`(§2.2 / §2.3)
+
+**③ 注入後 —— 再跑一次:**
+```powershell
+.venv\Scripts\python.exe refund_agent.py auto
+```
+→ ReAct 全自動:搜尋 → 讀信 → 分類 → 寄回信(逐封**彩色卡片**)
+→ 摘要 `Found 8 ｜ Replied 6 ｜ Skipped 2`(§2.4–2.6)
+> 講:「促銷信和政策詢問被分成 **OTHER 跳過不回**,其餘 6 封寄了 threaded 回信,
+> 全程沒人介入。」
+
+**④(選用)佐證:** 打開 Gmail 寄件備份,看 6 封 threaded 回信真的寄出。
+
+### 收尾白(15 秒)
+
+> 「兩個 agent 共用同一套 ReAct + MCP 架構,真連線操作 Google。行事曆能查、建、
+> 找空檔;退款能分類自動回信。每一步工具呼叫都是 LLM 自己推理決定的。」
+
+> 想走最穩路線:把注入放到階段 1 事前做好,正式只在 agent 打那三句 /
+> 跑 `refund_agent.py auto`(`calendar_agent.py demo` 會自動依序跑那三句英文)。
 
 ---
 
@@ -92,6 +140,32 @@ uv sync                                    # 安裝套件
 
 > 前提:已先跑過 `demo\record_demo.py` 重錄(內容才會跟現場 demo 一致)。
 > 真連線與預錄共用同一套畫面元件(`agent_view.py`),外觀完全相同。
+
+---
+
+## 指令小抄(把這段放手邊)
+
+| 用途 | 指令 |
+|---|---|
+| 一次性授權(需瀏覽器) | `.venv\Scripts\python.exe auth_setup.py` |
+| 注入行事曆(清理+10 筆) | `.venv\Scripts\python.exe testdata\create_calendar_events.py` |
+| 注入信件(清理+8 封) | `.venv\Scripts\python.exe testdata\send_test_emails.py` |
+| 行事曆 agent(互動) | `.venv\Scripts\python.exe calendar_agent.py` |
+| 行事曆快速 demo(自動跑三句) | `.venv\Scripts\python.exe calendar_agent.py demo` |
+| 退款自動跑 | `.venv\Scripts\python.exe refund_agent.py auto` |
+| 重錄離線備案 | `.venv\Scripts\python.exe demo\record_demo.py` |
+| 備案·行事曆 | `.venv\Scripts\python.exe demo\view_terminal.py calendar` |
+| 備案·退款 | `.venv\Scripts\python.exe demo\view_terminal.py refund` |
+| 備案·調節奏 | `... view_terminal.py calendar 1.2`(放慢) / `... 0`(秒出) |
+
+行事曆要打的三句(英文原句):
+```
+What's on my calendar?
+Schedule a team lunch for the coming Friday at noon for 1 hour.
+Find a free 30-minute slot for a call with john@example.com this week.
+```
+
+**鐵則**:行事曆打 **PDF 的英文原句**;注入腳本可安全重跑(預設先清理)。
 
 ---
 
