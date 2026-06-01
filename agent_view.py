@@ -1,11 +1,11 @@
 """Shared Rich rendering for live agent runs and recorded-demo playback.
 
-The live agents (calendar_agent.py / refund_agent.py) stream their REAL ReAct
-steps through `live_render`: a spinner animates during the genuine waits, and
-each tool call / result is printed the moment it actually happens. The
-recorded-demo viewer (demo/view_terminal.py) reuses the SAME visual primitives
-(query panel, tool trace, email cards, answer block) so the live view and the
-replayed view look identical — that is why this module exists in one place.
+Both views speak the SAME ReAct vocabulary — Thought → Action → Observation,
+looping until a Final Answer — so the audience can see the ReAct structure
+plainly. The live agents (calendar_agent.py / refund_agent.py) stream their
+REAL steps through `live_render`; the recorded viewer (demo/view_terminal.py)
+replays saved runs through the very same primitives, so live and replay look
+identical.
 """
 
 import sys
@@ -48,33 +48,46 @@ def query_panel(text: str) -> None:
                         title="[bold cyan]User[/]", border_style="cyan", expand=False))
 
 
-def trace_header() -> None:
-    console.print("[dim]── Agent reasoning trace ──[/]")
+# ── ReAct step primitives: Thought → Action → Observation → Final Answer ──────
 
-
-def tool_call_line(name: str, args: dict | None = None) -> None:
-    console.print(f"  [bold yellow]➜ {name}[/]")
-    if args:
-        compact = ", ".join(f"{k}={_short(v)}" for k, v in args.items())
-        if compact:
-            console.print(f"       [dim]{compact}[/]")
-
-
-def tool_result_block(name: str, result) -> None:
-    text = str(result)
-    if len(text) > MAX_RESULT_CHARS:
-        text = text[:MAX_RESULT_CHARS] + " …"
-    for ln in text.splitlines() or [""]:
-        console.print(f"       [dim]↳ {ln}[/]")
-
-
-def answer_block(text: str, label: str = "Agent") -> None:
+def react_thought(step: int, text: str) -> None:
     console.print()
-    console.print(f"[bold green]{label}[/]")
-    if str(text).strip():
-        console.print(Markdown(str(text)))
+    label = f"[bold cyan]🧠 Thought {step}[/]"
+    text = str(text).strip()
+    if text:
+        console.print(f"{label}  [white]{text}[/]")
     else:
-        console.print("[dim](已完成操作，無文字回覆)[/]")
+        console.print(f"{label}  [dim]決定下一步行動…[/]")
+
+
+def react_action(step: int, calls: list[dict]) -> None:
+    console.print(f"[bold yellow]⚙  Action {step}[/]")
+    for c in calls:
+        console.print(f"   [yellow]→ {c.get('name') or c.get('tool') or 'tool'}[/]")
+        args = c.get("args") or {}
+        if args:
+            compact = ", ".join(f"{k}={_short(v)}" for k, v in args.items())
+            if compact:
+                console.print(f"     [dim]{compact}[/]")
+
+
+def react_observation(step: int, results: list[dict]) -> None:
+    console.print(f"[bold green]👁  Observation {step}[/]")
+    for r in results:
+        name = r.get("name") or "tool"
+        text = str(r.get("result", ""))
+        if len(text) > MAX_RESULT_CHARS:
+            text = text[:MAX_RESULT_CHARS] + " …"
+        lines = text.splitlines() or [""]
+        console.print(f"   [green]{name}[/] [dim]→ {lines[0]}[/]")
+        for ln in lines[1:]:
+            console.print(f"     [dim]{ln}[/]")
+
+
+def react_answer(text: str, label: str = "Final Answer") -> None:
+    console.print()
+    body = Markdown(str(text)) if str(text).strip() else Text("（已完成操作，無文字回覆）", style="dim")
+    console.print(Panel(body, title=f"[bold green]✅ {label}[/]", border_style="green"))
     console.print()
     console.rule(style="dim")
 
@@ -90,7 +103,7 @@ def email_card(index: int, sender: str, subject: str, classification: str, actio
                         border_style=colour, expand=False))
 
 
-def _short(v, n: int = 40) -> str:
+def _short(v, n: int = 48) -> str:
     s = str(v).replace("\n", " ")
     return s if len(s) <= n else s[:n] + "…"
 
@@ -120,15 +133,14 @@ def parse_summary_table(answer: str) -> list[dict]:
     return rows
 
 
-# ── Live driver: stream a real agent run with animated waits ──────────────────
+# ── Live driver: stream a real ReAct run with animated waits ──────────────────
 
 async def live_render(agent, messages, kind: str = "generic", show_query: bool = True) -> list:
-    """Stream a real agent run, animating a spinner during the genuine waits and
-    printing each step as it happens. Returns the full updated message list so
-    the caller can keep multi-turn history.
+    """Stream a real agent run as ReAct steps, animating a spinner during the
+    genuine waits. Returns the full updated message list for multi-turn history.
 
-    Falls back to a single ainvoke + static pretty-render if streaming is
-    unavailable, so a demo never hard-fails on the display layer.
+    Falls back to a single ainvoke + static render if streaming is unavailable,
+    so a demo never hard-fails on the display layer.
     """
     if show_query:
         for m in reversed(messages):
@@ -139,18 +151,17 @@ async def live_render(agent, messages, kind: str = "generic", show_query: bool =
     try:
         return await _stream(agent, messages, kind)
     except Exception:
-        # Safety net: run once, render the result statically.
         result = await agent.ainvoke({"messages": messages})
         msgs = result["messages"]
         _render_static(msgs[len(messages):])
-        _finish(msgs, kind)
+        _finish(kind, _last_answer(msgs))
         return list(msgs)
 
 
 async def _stream(agent, messages, kind: str) -> list:
     final = list(messages)
+    step = 0
     answer = ""
-    trace_started = False
 
     status = console.status("[bold yellow]Agent 思考中…[/]", spinner="dots")
     status.start()
@@ -161,55 +172,73 @@ async def _stream(agent, messages, kind: str) -> list:
                 continue
             for update in chunk.values():
                 new = update.get("messages", []) if isinstance(update, dict) else []
+                if not new:
+                    continue
+                if spinning:
+                    status.stop(); spinning = False
+                final.extend(new)
+
+                tool_msgs = [m for m in new if isinstance(m, ToolMessage)]
                 for m in new:
-                    final.append(m)
                     if isinstance(m, AIMessage) and getattr(m, "tool_calls", None):
-                        if spinning:
-                            status.stop(); spinning = False
-                        if not trace_started:
-                            trace_header(); trace_started = True
-                        for tc in m.tool_calls:
-                            tool_call_line(tc.get("name", "tool"), tc.get("args"))
-                        status.update("[bold yellow]呼叫工具中…[/]")
-                        status.start(); spinning = True
-                    elif isinstance(m, ToolMessage):
-                        if spinning:
-                            status.stop(); spinning = False
-                        tool_result_block(m.name or "tool", m.content)
-                        status.update("[bold yellow]分析結果…[/]")
-                        status.start(); spinning = True
+                        step += 1
+                        react_thought(step, m.content)
+                        react_action(step, [
+                            {"name": tc.get("name", "tool"), "args": tc.get("args")}
+                            for tc in m.tool_calls
+                        ])
                     elif isinstance(m, AIMessage) and str(m.content).strip():
-                        answer = str(m.content)
+                        answer = str(m.content)  # content-only message = final answer
+
+                if tool_msgs:
+                    react_observation(step, [
+                        {"name": m.name, "result": m.content} for m in tool_msgs
+                    ])
+
+                status.update("[bold yellow]Agent 思考中…[/]")
+                status.start(); spinning = True
     finally:
         if spinning:
             status.stop()
 
-    _finish(final, kind, answer)
+    _finish(kind, answer)
     return final
 
 
 def _render_static(new_messages: list) -> None:
-    """Static fallback render of a finished turn's tool steps."""
-    steps = [m for m in new_messages if isinstance(m, (AIMessage, ToolMessage))]
-    printed = False
-    for m in steps:
+    """Static ReAct render of a finished turn (streaming-unavailable fallback)."""
+    step = 0
+    i = 0
+    msgs = list(new_messages)
+    while i < len(msgs):
+        m = msgs[i]
         if isinstance(m, AIMessage) and getattr(m, "tool_calls", None):
-            if not printed:
-                trace_header(); printed = True
-            for tc in m.tool_calls:
-                tool_call_line(tc.get("name", "tool"), tc.get("args"))
-        elif isinstance(m, ToolMessage):
-            if not printed:
-                trace_header(); printed = True
-            tool_result_block(m.name or "tool", m.content)
+            step += 1
+            react_thought(step, m.content)
+            react_action(step, [
+                {"name": tc.get("name", "tool"), "args": tc.get("args")}
+                for tc in m.tool_calls
+            ])
+            obs = []
+            j = i + 1
+            while j < len(msgs) and isinstance(msgs[j], ToolMessage):
+                obs.append({"name": msgs[j].name, "result": msgs[j].content})
+                j += 1
+            if obs:
+                react_observation(step, obs)
+            i = j
+        else:
+            i += 1
 
 
-def _finish(messages: list, kind: str, answer: str = "") -> None:
-    if not answer:
-        for m in reversed(messages):
-            if isinstance(m, AIMessage) and str(m.content).strip():
-                answer = str(m.content)
-                break
+def _last_answer(messages: list) -> str:
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and not getattr(m, "tool_calls", None) and str(m.content).strip():
+            return str(m.content)
+    return ""
+
+
+def _finish(kind: str, answer: str) -> None:
     if kind == "refund":
         rows = parse_summary_table(answer)
         if rows:
@@ -217,6 +246,6 @@ def _finish(messages: list, kind: str, answer: str = "") -> None:
             console.print(f"[dim]—— 收件匣處理結果：{len(rows)} 封 ——[/]")
             for i, r in enumerate(rows, 1):
                 email_card(i, r["sender"], r["subject"], r["classification"], r["action"])
-        answer_block(answer, label="Agent 摘要報告")
+        react_answer(answer, label="Final Answer — 摘要報告")
     else:
-        answer_block(answer)
+        react_answer(answer)

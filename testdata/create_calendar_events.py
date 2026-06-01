@@ -1,16 +1,21 @@
-"""Inject the test calendar events from the testing spec (Testing_project_2.pdf
-§1.2, Table 1) into the user's Google Calendar.
+"""Reset + inject the test calendar events from the testing spec
+(Testing_project_2.pdf §1.2, Table 1).
+
+DEFAULT BEHAVIOUR = CLEAN then INJECT: first delete every event in the test
+window (Jun 1–5, 2026) so re-runs never pile up duplicates, then create the
+10 events fresh. Pass --no-clean to skip the cleanup and only add.
 
 Auth: uses the SAME workspace-mcp OAuth as the agents — run `auth_setup.py`
-once and this works (no token.json, no extra setup). It starts the MCP server,
-finds the create-event tool, and adapts to whatever parameter names that tool
-exposes, so it stays robust across workspace-mcp versions.
+once and this works (no token.json). It finds the right MCP tools and adapts
+to their parameter names, so it stays robust across workspace-mcp versions.
 
-    python testdata/create_calendar_events.py
+    python testdata/create_calendar_events.py            # clean + inject (default)
+    python testdata/create_calendar_events.py --no-clean # inject only
 """
 
 import asyncio
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -29,6 +34,10 @@ if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() !=
 
 TIMEZONE = "Asia/Taipei"
 TZ_OFFSET = "+08:00"
+
+# Test window (local time) used for cleanup — covers the whole spec week.
+WINDOW_MIN = "2026-06-01T00:00:00" + TZ_OFFSET
+WINDOW_MAX = "2026-06-06T00:00:00" + TZ_OFFSET
 
 # Testing_project_2.pdf — Table 1: Existing Calendar Events (verbatim).
 EVENTS = [
@@ -63,39 +72,40 @@ def _mcp_env() -> dict:
 
 
 def _pick(props: dict, *candidates: str) -> str | None:
-    """Return the first candidate key that exists in the tool's schema."""
     for c in candidates:
         if c in props:
             return c
     return None
 
 
-def _find_create_tool(tools) -> object:
-    """Locate the calendar create-event tool, tolerating naming differences."""
+def _props(tool) -> dict:
+    return (getattr(tool, "inputSchema", None) or {}).get("properties", {}) or {}
+
+
+def _find_tool(tools, *exact_names, contains=()):
     by_name = {t.name: t for t in tools}
-    for exact in ("create_event", "create_calendar_event", "manage_event"):
-        if exact in by_name:
-            return by_name[exact]
+    for name in exact_names:
+        if name in by_name:
+            return by_name[name]
     for t in tools:
         n = t.name.lower()
-        if "event" in n and ("create" in n or "add" in n or "insert" in n):
+        if all(c in n for c in contains):
             return t
-    raise RuntimeError(
-        f"No create-event tool found. Available: {[t.name for t in tools]}"
-    )
+    return None
 
 
-def _build_args(tool, event: dict, email: str) -> dict:
-    props = (getattr(tool, "inputSchema", None) or {}).get("properties", {}) or {}
+def _text(result) -> str:
+    return " ".join((i.text if hasattr(i, "text") else str(i)) for i in result.content)
 
+
+def _create_args(tool, event: dict, email: str) -> dict:
+    props = _props(tool)
     summary_k = _pick(props, "summary", "title") or "summary"
     start_k = _pick(props, "start_time", "start", "startTime", "start_datetime") or "start_time"
     end_k = _pick(props, "end_time", "end", "endTime", "end_datetime") or "end_time"
     tz_k = _pick(props, "timezone", "time_zone", "tz")
     cal_k = _pick(props, "calendar_id", "calendarId")
 
-    # If the tool takes a separate timezone field, send naive local times; else
-    # bake the +08:00 offset into the timestamp.
     if tz_k:
         start_v, end_v = event["start"], event["end"]
     else:
@@ -106,7 +116,6 @@ def _build_args(tool, event: dict, email: str) -> dict:
         args[tz_k] = TIMEZONE
     if cal_k:
         args[cal_k] = "primary"
-    # manage_event variants need an explicit action.
     if "action" in props:
         args["action"] = "create"
     if "user_google_email" in props and email:
@@ -114,40 +123,95 @@ def _build_args(tool, event: dict, email: str) -> dict:
     return args
 
 
+async def clean_window(session, tools, email: str) -> int:
+    """Delete every event in the test window. Returns count deleted."""
+    get_tool = _find_tool(tools, "get_events", contains=("event",))
+    manage = _find_tool(tools, "manage_event", "delete_event", contains=("event",))
+    if not get_tool or not manage:
+        print("[clean] skip — no get/delete event tool found.")
+        return 0
+
+    gp = _props(get_tool)
+    tmin_k = _pick(gp, "time_min", "timeMin", "start_time") or "time_min"
+    tmax_k = _pick(gp, "time_max", "timeMax", "end_time") or "time_max"
+    args = {tmin_k: WINDOW_MIN, tmax_k: WINDOW_MAX}
+    if _pick(gp, "calendar_id", "calendarId"):
+        args[_pick(gp, "calendar_id", "calendarId")] = "primary"
+    if "max_results" in gp:
+        args["max_results"] = 100
+    if "user_google_email" in gp and email:
+        args["user_google_email"] = email
+
+    listing = _text(await session.call_tool(get_tool.name, args))
+    ids = re.findall(r"ID:\s*([A-Za-z0-9_@.-]+)", listing)
+    if not ids:
+        print("[clean] window already empty.")
+        return 0
+
+    mp = _props(manage)
+    id_k = _pick(mp, "event_id", "eventId", "id") or "event_id"
+    deleted = 0
+    for eid in ids:
+        dargs = {id_k: eid}
+        if "action" in mp:
+            dargs["action"] = "delete"
+        if _pick(mp, "calendar_id", "calendarId"):
+            dargs[_pick(mp, "calendar_id", "calendarId")] = "primary"
+        if "user_google_email" in mp and email:
+            dargs["user_google_email"] = email
+        try:
+            out = _text(await session.call_tool(manage.name, dargs))
+            if "error" in out.lower()[:60]:
+                print(f"[clean] x failed to delete {eid}: {out[:80]}")
+            else:
+                deleted += 1
+        except Exception as e:  # noqa: BLE001
+            print(f"[clean] x error deleting {eid}: {e}")
+    print(f"[clean] deleted {deleted} existing event(s) in {WINDOW_MIN[:10]}–{WINDOW_MAX[:10]}.")
+    return deleted
+
+
+async def inject(session, tools, email: str) -> tuple[int, int]:
+    create_tool = _find_tool(tools, "create_event", "create_calendar_event", "manage_event",
+                             contains=("event",))
+    if not create_tool:
+        raise RuntimeError(f"No create-event tool. Available: {[t.name for t in tools]}")
+    print(f"[inject] using MCP tool: {create_tool.name}")
+
+    created = failed = 0
+    for idx, event in enumerate(EVENTS, 1):
+        try:
+            out = _text(await session.call_tool(create_tool.name, _create_args(create_tool, event, email)))
+            if "error" in out.lower()[:60]:
+                print(f"[{idx}/{len(EVENTS)}] x FAILED: {event['summary']} — {out[:100]}")
+                failed += 1
+            else:
+                print(f"[{idx}/{len(EVENTS)}] OK Created: {event['summary']}")
+                created += 1
+        except Exception as e:  # noqa: BLE001
+            print(f"[{idx}/{len(EVENTS)}] x ERROR: {event['summary']} — {e}")
+            failed += 1
+    return created, failed
+
+
 async def main() -> None:
     if not os.getenv("GOOGLE_OAUTH_CLIENT_ID"):
         print("[ERROR] Missing GOOGLE_OAUTH_CLIENT_ID in .env (see .env.example).")
         sys.exit(1)
 
+    do_clean = "--no-clean" not in sys.argv
     email = os.getenv("USER_GOOGLE_EMAIL", "")
     server_params = StdioServerParameters(command="uvx", args=MCP_ARGS, env=_mcp_env())
 
-    print(f"[*] Creating {len(EVENTS)} test events on {email or 'primary'} ...")
+    print(f"[*] Target: {email or 'primary'} | clean={do_clean}")
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools = (await session.list_tools()).tools
-            tool = _find_create_tool(tools)
-            print(f"[OK] Using MCP tool: {tool.name}\n")
 
-            created = failed = 0
-            for idx, event in enumerate(EVENTS, 1):
-                args = _build_args(tool, event, email)
-                try:
-                    result = await session.call_tool(tool.name, args)
-                    text = " ".join(
-                        (item.text if hasattr(item, "text") else str(item))
-                        for item in result.content
-                    )
-                    if "error" in text.lower()[:60]:
-                        print(f"[{idx}/{len(EVENTS)}] x FAILED: {event['summary']} — {text[:120]}")
-                        failed += 1
-                    else:
-                        print(f"[{idx}/{len(EVENTS)}] OK Created: {event['summary']}")
-                        created += 1
-                except Exception as e:  # noqa: BLE001 — report and keep going
-                    print(f"[{idx}/{len(EVENTS)}] x ERROR: {event['summary']} — {e}")
-                    failed += 1
+            if do_clean:
+                await clean_window(session, tools, email)
+            created, failed = await inject(session, tools, email)
 
     print(f"\nDone. {created} created, {failed} failed.")
     if created:

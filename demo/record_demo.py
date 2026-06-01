@@ -42,21 +42,38 @@ CALENDAR_QUERIES = [
 
 
 def extract_record(messages: list, query: str) -> dict:
-    """Turn a run's message list into a {query, steps, answer} record."""
-    steps = []
+    """Turn a run's message list into a ReAct record:
+    {query, react: [{thought, actions, observations}], answer}.
+
+    Mirrors the live renderer so the recorded view shows the same
+    Thought → Action → Observation loop.
+    """
+    react: list[dict] = []
+    current: dict | None = None
     for msg in messages:
-        if isinstance(msg, ToolMessage):
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            current = {
+                "thought": str(msg.content or ""),
+                "actions": [{"tool": tc.get("name", "tool"), "args": tc.get("args")}
+                            for tc in msg.tool_calls],
+                "observations": [],
+            }
+            react.append(current)
+        elif isinstance(msg, ToolMessage):
             result = str(msg.content)
             if len(result) > MAX_RESULT_CHARS:
                 result = result[:MAX_RESULT_CHARS] + " …"
-            steps.append({"tool": msg.name or "tool", "result": result})
+            if current is not None:
+                current["observations"].append({"tool": msg.name or "tool", "result": result})
 
-    # 最終答案 = 最長的那則 AIMessage 文字(避免抓到 "處理完成" 這種收尾短句)
-    ai_texts = [str(m.content) for m in messages
-                if isinstance(m, AIMessage) and m.content]
-    answer = max(ai_texts, key=len) if ai_texts else ""
+    # 最終答案 = 最後一則「沒有 tool_calls」的 AIMessage(真正的回覆,不是中途思考)
+    answer = ""
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and not getattr(m, "tool_calls", None) and str(m.content).strip():
+            answer = str(m.content)
+            break
 
-    return {"query": query, "steps": steps, "answer": answer}
+    return {"query": query, "react": react, "answer": answer}
 
 
 async def record_calendar() -> None:
@@ -103,8 +120,8 @@ def _save(name: str, records: list) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     path = DATA_DIR / f"{name}.json"
     path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
-    total_steps = sum(len(r["steps"]) for r in records)
-    print(f"[SAVED] {path}  ({len(records)} records, {total_steps} tool calls)")
+    total_steps = sum(len(r.get("react", [])) for r in records)
+    print(f"[SAVED] {path}  ({len(records)} records, {total_steps} ReAct steps)")
 
 
 async def main() -> None:

@@ -1,14 +1,22 @@
-"""Send the 8 test customer-service emails from the testing spec
-(Testing_project_2.pdf §2.2 / §2.3) to the mailbox the Refund Agent monitors.
+"""Reset + inject the 8 test customer-service emails from the testing spec
+(Testing_project_2.pdf §2.2 / §2.3) into the mailbox the Refund Agent monitors.
 
 Dataset: 2 REFUND_REQUEST + 2 RETURN_REQUEST + 2 COMPLAINT + 2 OTHER.
 
-Auth: uses the SAME workspace-mcp OAuth as the agents — run `auth_setup.py`
-once and this works (no SMTP server, no Gmail App Password). Emails are sent
-from USER_GOOGLE_EMAIL to itself (self-send), which the Refund Agent then
-finds as unread customer-service mail.
+DEFAULT BEHAVIOUR = CLEAN then INJECT: first trash any leftover test emails
+(originals + agent replies) so the inbox doesn't accumulate across runs, then
+send 8 fresh ones. Pass --no-clean to skip the cleanup and only send.
 
-    python testdata/send_test_emails.py
+Cleanup needs gmail modify scope (to trash). If that scope/tool isn't
+available it is skipped with a note — injection still proceeds.
+
+Auth: uses the SAME workspace-mcp OAuth as the agents — run `auth_setup.py`
+once (in an environment WITH A BROWSER for the consent screen) and this works;
+no SMTP server, no Gmail App Password. Emails are sent from USER_GOOGLE_EMAIL
+to itself (self-send).
+
+    python testdata/send_test_emails.py             # clean + inject (default)
+    python testdata/send_test_emails.py --no-clean  # send only
 """
 
 import asyncio
@@ -55,8 +63,11 @@ EMAILS = [
      "body": "Hello,\n\nBefore purchasing, I would like to know your refund policy.\n\nThank you."},
 ]
 
-MCP_ARGS = ["workspace-mcp", "--single-user", "--tool-tier", "core",
-            "--permissions", "gmail:send"]
+SEND_ARGS = ["workspace-mcp", "--single-user", "--tool-tier", "core",
+             "--permissions", "gmail:send"]
+# Broader scope for the cleanup phase (needs modify to trash). Best-effort.
+CLEAN_ARGS = ["workspace-mcp", "--single-user", "--tool-tier", "extended",
+              "--permissions", "gmail:full"]
 
 
 def _mcp_env() -> dict:
@@ -73,41 +84,127 @@ def _mcp_env() -> dict:
     }
 
 
+def _props(tool) -> dict:
+    return (getattr(tool, "inputSchema", None) or {}).get("properties", {}) or {}
+
+
+def _pick(props: dict, *candidates: str) -> str | None:
+    for c in candidates:
+        if c in props:
+            return c
+    return None
+
+
+def _find(tools, *exact, contains=()):
+    by_name = {t.name: t for t in tools}
+    for n in exact:
+        if n in by_name:
+            return by_name[n]
+    for t in tools:
+        low = t.name.lower()
+        if contains and all(c in low for c in contains):
+            return t
+    return None
+
+
+def _text(result) -> str:
+    return " ".join((i.text if hasattr(i, "text") else str(i)) for i in result.content)
+
+
+def _extract_ids(search_text: str) -> list[str]:
+    import re
+    return re.findall(r"Message ID:\s*([A-Za-z0-9]+)", search_text)
+
+
+async def clean(email: str) -> None:
+    """Best-effort: trash leftover test emails (originals + replies)."""
+    subjects = {e["subject"] for e in EMAILS}
+    server = StdioServerParameters(command="uvx", args=CLEAN_ARGS, env=_mcp_env())
+    try:
+        async with stdio_client(server) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                tools = (await session.list_tools()).tools
+                search = _find(tools, "search_gmail_messages", contains=("search", "gmail"))
+                trash = _find(tools, "trash_gmail_message", contains=("trash",))
+                modify = _find(tools, "modify_gmail_message_labels", contains=("modify", "label"))
+                if not search or not (trash or modify):
+                    print("[clean] skip — no trash/modify tool available "
+                          "(gmail scope is send-only). Injecting fresh anyway.")
+                    return
+
+                ids: set[str] = set()
+                for subj in subjects:
+                    q = f'subject:"{subj}" newer_than:14d'
+                    args = {"query": q}
+                    if "user_google_email" in _props(search) and email:
+                        args["user_google_email"] = email
+                    ids.update(_extract_ids(_text(await session.call_tool(search.name, args))))
+
+                if not ids:
+                    print("[clean] no leftover test emails found.")
+                    return
+
+                trashed = 0
+                for mid in ids:
+                    try:
+                        if trash:
+                            tp = _props(trash)
+                            a = {(_pick(tp, "message_id", "messageId", "id") or "message_id"): mid}
+                            if "user_google_email" in tp and email:
+                                a["user_google_email"] = email
+                            out = _text(await session.call_tool(trash.name, a))
+                        else:
+                            mp = _props(modify)
+                            a = {(_pick(mp, "message_id", "messageId", "id") or "message_id"): mid,
+                                 (_pick(mp, "add_label_ids", "add_labels", "labels_to_add") or "add_label_ids"): ["TRASH"]}
+                            if "user_google_email" in mp and email:
+                                a["user_google_email"] = email
+                            out = _text(await session.call_tool(modify.name, a))
+                        if "error" not in out.lower()[:60]:
+                            trashed += 1
+                    except Exception as e:  # noqa: BLE001
+                        print(f"[clean] x error trashing {mid}: {e}")
+                print(f"[clean] trashed {trashed}/{len(ids)} leftover test email(s).")
+    except Exception as e:  # noqa: BLE001 — never let cleanup block injection
+        print(f"[clean] skip — cleanup unavailable ({e}). Injecting fresh anyway.")
+
+
+async def inject(email: str) -> tuple[int, int]:
+    server = StdioServerParameters(command="uvx", args=SEND_ARGS, env=_mcp_env())
+    sent = failed = 0
+    async with stdio_client(server) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            for idx, mail in enumerate(EMAILS, 1):
+                try:
+                    out = _text(await session.call_tool("send_gmail_message", {
+                        "to": email, "subject": mail["subject"], "body": mail["body"],
+                    }))
+                    if "error" in out.lower()[:60]:
+                        print(f"[{idx}/{len(EMAILS)}] x FAILED {mail['category']}: {mail['subject']} — {out[:100]}")
+                        failed += 1
+                    else:
+                        print(f"[{idx}/{len(EMAILS)}] OK Sent {mail['category']}: {mail['subject']}")
+                        sent += 1
+                except Exception as e:  # noqa: BLE001
+                    print(f"[{idx}/{len(EMAILS)}] x ERROR {mail['category']}: {mail['subject']} — {e}")
+                    failed += 1
+                time.sleep(SEND_DELAY_SECONDS)
+    return sent, failed
+
+
 async def main() -> None:
     email = os.getenv("USER_GOOGLE_EMAIL", "")
     if not email:
         print("[ERROR] Missing USER_GOOGLE_EMAIL in .env (see .env.example).")
         sys.exit(1)
 
-    server_params = StdioServerParameters(command="uvx", args=MCP_ARGS, env=_mcp_env())
-
-    print(f"[*] Sending {len(EMAILS)} test emails to {email} (self-send) ...")
-    sent = failed = 0
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-
-            for idx, mail in enumerate(EMAILS, 1):
-                try:
-                    result = await session.call_tool("send_gmail_message", {
-                        "to": email,
-                        "subject": mail["subject"],
-                        "body": mail["body"],
-                    })
-                    text = " ".join(
-                        (item.text if hasattr(item, "text") else str(item))
-                        for item in result.content
-                    )
-                    if "error" in text.lower()[:60]:
-                        print(f"[{idx}/{len(EMAILS)}] x FAILED {mail['category']}: {mail['subject']} — {text[:120]}")
-                        failed += 1
-                    else:
-                        print(f"[{idx}/{len(EMAILS)}] OK Sent {mail['category']}: {mail['subject']}")
-                        sent += 1
-                except Exception as e:  # noqa: BLE001 — report and keep going
-                    print(f"[{idx}/{len(EMAILS)}] x ERROR {mail['category']}: {mail['subject']} — {e}")
-                    failed += 1
-                time.sleep(SEND_DELAY_SECONDS)
+    do_clean = "--no-clean" not in sys.argv
+    print(f"[*] Target: {email} (self-send) | clean={do_clean}")
+    if do_clean:
+        await clean(email)
+    sent, failed = await inject(email)
 
     print(f"\nDone. {sent} sent, {failed} failed.")
     if sent:

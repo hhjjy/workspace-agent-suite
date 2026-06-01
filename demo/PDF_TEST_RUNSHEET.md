@@ -13,6 +13,9 @@ uv sync                                    # 安裝套件
 .venv\Scripts\python.exe auth_setup.py     # 跳瀏覽器,授權 Calendar + Gmail
 ```
 
+> ⚠️ **`auth_setup.py` 必須在「有瀏覽器」的環境跑** — 它會開瀏覽器完成 Google OAuth
+> 同意畫面;無頭/純文字環境會失敗。授權成功後憑證存本機,之後的注入腳本不再開瀏覽器。
+
 > 跑完 `auth_setup.py`,**行事曆與郵件的注入腳本就都能用了**——認證只此一次,
 > 不需要 token.json、也不需要 Gmail 應用程式密碼。
 
@@ -23,19 +26,18 @@ uv sync                                    # 安裝套件
 正式 demo 前先完整跑一遍確認都正常,順便重錄離線備案:
 
 ```powershell
-.venv\Scripts\python.exe testdata\create_calendar_events.py   # 塞 10 筆事件
-.venv\Scripts\python.exe testdata\send_test_emails.py          # 寄 8 封客服信
+.venv\Scripts\python.exe testdata\create_calendar_events.py   # 清理測試週 + 塞 10 筆事件
+.venv\Scripts\python.exe testdata\send_test_emails.py          # 清理舊測試信 + 寄 8 封
 .venv\Scripts\python.exe calendar_agent.py demo                # 確認三個 prompt 正常
 .venv\Scripts\python.exe refund_agent.py auto                  # 確認退款流程正常
 .venv\Scripts\python.exe demo\record_demo.py                   # 重錄離線備案
 ```
 
-⚠️ **想做「注入前/後」對照橋段(見階段 2)的話,演練完請把測試事件/信件清掉**,
-讓正式 demo 的「注入前」畫面是乾淨的。不想做對照、要走最穩路線的,就**事前注入好、
-正式只跑 agent**即可。
+> ✅ **兩支注入腳本預設都「先清理、再注入」**(行事曆清掉測試週舊事件;郵件把舊測試信
+> 丟垃圾桶),所以**可以安全重複跑、不會累積重複資料**。只想新增不清理時加 `--no-clean`。
 
 ⚠️ **事件日期固定在 2026-06-01～06-05**。PDF 的「coming Friday / this week」是相對
-今天算的,所以請在**那一週內** demo;若延期,重跑注入腳本即可(腳本可重複執行)。
+今天算的,所以請在**那一週內** demo;若延期,重跑注入腳本即可。
 
 ---
 

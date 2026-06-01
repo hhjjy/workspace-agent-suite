@@ -130,6 +130,10 @@ python auth_setup.py
 
 依瀏覽器提示完成 Calendar 與 Gmail 的 OAuth。
 
+> ⚠️ **必須在「有瀏覽器」的環境執行** — `auth_setup.py` 會開啟瀏覽器完成 Google OAuth
+> 同意畫面。純文字/遠端/無頭環境無法完成授權(會出現 "No authorization code
+> received from Google")。授權成功後憑證存於本機,之後的腳本不需再開瀏覽器。
+
 ### 5. 執行
 
 ```bash

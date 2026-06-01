@@ -1,9 +1,9 @@
-"""Rich terminal demo viewer — replays pre-recorded agent runs with a
-"thinking" feel: spinners pause before tool calls and before the answer,
-so it looks like the agent is reasoning in real time.
+"""Rich terminal demo viewer — replays pre-recorded agent runs as ReAct steps
+(Thought → Action → Observation → Final Answer), with a "thinking" feel:
+spinners pause between steps so it looks like the agent is reasoning live.
 
 demo 當天只讀預存 JSON(由 record_demo.py 事先產生),完全不連線、零出包風險。
-畫面元件(框/卡片/回覆)與真連線共用 agent_view.py,兩者外觀一致。
+畫面元件與真連線共用 agent_view.py,兩者外觀一致(都是 ReAct 結構)。
 
 用法:
     python demo/view_terminal.py calendar          # 預設節奏
@@ -12,8 +12,12 @@ demo 當天只讀預存 JSON(由 record_demo.py 事先產生),完全不連線、
 
 Record format (one list per agent):
 [
-  {"query": "...", "steps": [{"tool": "name", "result": "..."}], "answer": "..."}
+  {"query": "...",
+   "react": [{"thought": "...", "actions": [{"tool": "x", "args": {...}}],
+              "observations": [{"tool": "x", "result": "..."}]}],
+   "answer": "..."}
 ]
+(也相容舊格式: {"query","steps":[{"tool","result"}],"answer"})
 """
 
 import json
@@ -26,15 +30,15 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent_view import (  # noqa: E402
-    answer_block,
     console,
     email_card,
     parse_summary_table,
     query_panel,
+    react_action,
+    react_answer,
+    react_observation,
+    react_thought,
     session_banner,
-    tool_call_line,
-    tool_result_block,
-    trace_header,
 )
 
 
@@ -46,24 +50,35 @@ def _think(label: str, seconds: float) -> None:
         time.sleep(seconds)
 
 
-def render_record(record: dict, step_delay: float = 0.7) -> None:
-    """Replay one recorded query → (think) → tool calls → (think) → answer."""
-    query_panel(record.get("query", ""))
-    _think("Agent 思考中…", step_delay * 1.6)
+def _react_steps(record: dict) -> list[dict]:
+    """Return the record's ReAct steps, upgrading the legacy {steps:[...]} shape."""
+    if record.get("react"):
+        return record["react"]
+    # Legacy: one tool+result per step, no captured thought.
+    return [
+        {"thought": "", "actions": [{"tool": s.get("tool", "tool")}],
+         "observations": [{"tool": s.get("tool", "tool"), "result": s.get("result", "")}]}
+        for s in record.get("steps", []) or []
+    ]
 
-    steps = record.get("steps", []) or []
-    if steps:
-        trace_header()
-        for st in steps:
-            tool = st.get("tool", "?")
-            _think(f"呼叫工具 {tool} …", step_delay)
-            tool_call_line(tool)
-            if st.get("result"):
-                tool_result_block(tool, st["result"])
-            _think("分析結果…", step_delay * 0.7)
+
+def render_record(record: dict, step_delay: float = 0.7) -> None:
+    """Replay one query as ReAct steps."""
+    query_panel(record.get("query", ""))
+
+    for i, st in enumerate(_react_steps(record), 1):
+        _think("Agent 思考中…", step_delay * 1.6)
+        react_thought(i, st.get("thought", ""))
+        react_action(i, st.get("actions", []))
+        obs = [{"name": o.get("tool"), "result": o.get("result", "")}
+               for o in st.get("observations", []) or []]
+        if obs:
+            _think("呼叫工具中…", step_delay)
+            react_observation(i, obs)
+        _think("分析結果…", step_delay * 0.7)
 
     _think("整理回覆中…", step_delay * 1.4)
-    answer_block(record.get("answer", ""))
+    react_answer(record.get("answer", ""))
 
 
 def render_refund(record: dict, step_delay: float = 0.7) -> None:
@@ -80,7 +95,7 @@ def render_refund(record: dict, step_delay: float = 0.7) -> None:
         email_card(i, em["sender"], em["subject"], em["classification"], em["action"])
 
     _think("彙整報告中…", step_delay * 1.2)
-    answer_block(answer, label="Agent 摘要報告")
+    react_answer(answer, label="Final Answer — 摘要報告")
 
 
 def render_demo(records: list, title: str, step_delay: float, kind: str) -> None:
@@ -93,8 +108,8 @@ def render_demo(records: list, title: str, step_delay: float, kind: str) -> None
 
 
 TITLES = {
-    "calendar": "Calendar Agent — Demo",
-    "refund": "Refund Email Agent — Demo",
+    "calendar": "Calendar Agent — Demo (ReAct)",
+    "refund": "Refund Email Agent — Demo (ReAct)",
 }
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
